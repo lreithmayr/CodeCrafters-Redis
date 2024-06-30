@@ -57,16 +57,13 @@ int main(int argc, char **argv) {
   }
   std::cout << "Client connected\n";
 
-  char buf[BUF_SIZE];
-  int n = read(acc_sockfd, buf, 255);
-  if (n < 0) {
-	error("ERROR reading from socket");
-  }
-
-  const char resp[] = "+PONG\r\n";
-  n = write(acc_sockfd, &resp, sizeof(resp)-1);
-  if (n < 0) {
-	error("ERROR writing to socket");
+  char rbuf[BUF_SIZE];
+  while(read(acc_sockfd, rbuf, sizeof(rbuf) - 1)) {
+	const char wbuf[] = "+PONG\r\n";
+	int n = write(acc_sockfd, wbuf, sizeof(wbuf) - 1);
+	if (n < 0) {
+	  error("ERROR writing to socket");
+	}
   }
 
   close(acc_sockfd);
