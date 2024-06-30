@@ -1,12 +1,4 @@
-#include <iostream>
-#include <cstdlib>
-#include <string>
-#include <cstring>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <netdb.h>
+#include "Server.h"
 
 #define BUF_SIZE 256
 
@@ -15,59 +7,96 @@ void error(const char *msg) {
   exit(1);
 }
 
-int main(int argc, char **argv) {
-  // Flush after every std::cout / std::cerr
-  std::cout << std::unitbuf;
-  std::cerr << std::unitbuf;
+void Server::init() {
+  m_client_addr_len = sizeof(m_client_addr);
+  m_server_addr.sin_family = AF_INET;
+  m_server_addr.sin_addr.s_addr = INADDR_ANY;
+  m_server_addr.sin_port = htons(6379);
 
-  int server_fd = socket(AF_INET, SOCK_STREAM, 0);
-  if (server_fd < 0) {
+  // Create socket
+  m_sock_fd = socket(AF_INET, SOCK_STREAM, 0);
+  if (m_sock_fd < 0) {
 	error("Failed to create server socket\n");
   }
 
-  // Since the tester restarts your program quite often, setting SO_REUSEADDR
-  // ensures that we don't run into 'Address already in use' errors
   int reuse = 1;
-  if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
+  if (setsockopt(m_sock_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
 	error("setsockopt failed\n");
   }
 
-  struct sockaddr_in server_addr;
-  server_addr.sin_family = AF_INET;
-  server_addr.sin_addr.s_addr = INADDR_ANY;
-  server_addr.sin_port = htons(6379);
-
-  if (bind(server_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) != 0) {
+  // Bind to socket adress
+  if (bind(m_sock_fd, (struct sockaddr *)&m_server_addr, sizeof(m_server_addr)) < 0) {
 	error("Failed to bind to port 6379\n");
   }
+}
 
+[[noreturn]] void Server::run() {
+  // Listen for incoming connections
   int connection_backlog = 5;
-  if (listen(server_fd, connection_backlog) != 0) {
-	error("listen failed\n");
-  }
+  listen(m_sock_fd, connection_backlog);
+  std::cout << "Waiting for a clients to connect..." << "\n";
 
-  struct sockaddr_in client_addr;
-  int client_addr_len = sizeof(client_addr);
+  // Event loop processing incoming connections
+  while (true) {
+	// Clear the watched read FDs
+	FD_ZERO(&m_readfds);
+	// Add server to the watched FDs
+	FD_SET(m_sock_fd, &m_readfds);
 
-  std::cout << "Waiting for a client to connect...\n";
+	// Re-initialize the active client FDs every time through the loop, since select() modifies readfds in-place
+	if (!m_clients.empty()) {
+	  for (size_t i = 0; i < m_clients.size(); ++i) {
+		FD_SET(m_clients.at(i), &m_readfds);
+	  }
+	}
 
-  int acc_sockfd = accept(server_fd, (struct sockaddr *)&client_addr, (socklen_t *)&client_addr_len);
-  if (acc_sockfd < 0) {
-	error("Error on accept\n");
-  }
-  std::cout << "Client connected\n";
+	// Check, if one of the watched FDs is ready to be read from. If so, FD_ISSET becomes true
+	int onActivity = select(FD_SETSIZE, &m_readfds, NULL, NULL, NULL);
+	if ((onActivity < 0) && (errno != EINTR)) {
+	  error("Select error");
+	}
 
-  char rbuf[BUF_SIZE];
-  while(read(acc_sockfd, rbuf, sizeof(rbuf) - 1)) {
-	const char wbuf[] = "+PONG\r\n";
-	int n = write(acc_sockfd, wbuf, sizeof(wbuf) - 1);
-	if (n < 0) {
-	  error("ERROR writing to socket");
+	// If select() triggered on the server, there is an incoming new connection "new_client_socket". Add it to the list of clients
+	if (FD_ISSET(m_sock_fd, &m_readfds)) {
+	  int new_client_socket;
+	  if ((new_client_socket = accept(m_sock_fd, (struct sockaddr *)&m_client_addr, (socklen_t *)&m_client_addr_len))
+		< 0) {
+		error("Accept error");
+	  }
+	  std::cout << "New connection with fd " << new_client_socket << "\n";
+	  // Add it to the client list
+	  m_clients.push_back(new_client_socket);
+	}
+
+	// Loop through the list of active connections to read the data
+	for (size_t i = 0; i < m_clients.size(); ++i) {
+	  int client_fd = m_clients.at(i);
+	  // Only true, if select() triggers on one of the clients on the readfds watch list
+	  if (FD_ISSET(client_fd, &m_readfds)) {
+		std::cout << "Data from client " << client_fd << "\n";
+		handle_client(client_fd, i);
+	  }
 	}
   }
+}
 
-  close(acc_sockfd);
-  close(server_fd);
+void Server::handle_client(int &fd, int i) {
+  std::cout << "Reading data" << "\n";
+  char rbuf[BUF_SIZE];
+  int n = read(fd, rbuf, sizeof(rbuf) - 1);
+  if (n != 0) {
+	std::cout << "Received message: " << rbuf << "\n";
+  } else {
+	std::cout << "FD " << fd << "disconnected!" << "\n";
+	close(fd);
+	m_clients.erase(m_clients.begin() + i);
+	return;
+  }
 
-  return 0;
+  std::cout << "Sending data" << "\n";
+  const char wbuf[] = "+PONG\r\n";
+  n = write(fd, wbuf, sizeof(wbuf) - 1);
+  if (n < 0) {
+	error("Writing to socket");
+  }
 }
