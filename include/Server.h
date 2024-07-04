@@ -14,13 +14,16 @@
 #include <sys/fcntl.h>
 #include <sys/select.h>
 
+#include "Protocol.h"
+
 class Server {
  public:
   Server() = default;
 
   void init();
   [[noreturn]] void run();
-  void handle_client(int &fd, int i);
+  void process_command(const int &fd, const int i);
+  void close_connection(const int &fd, const int i);
 
  private:
   int m_sock_fd { -1 };

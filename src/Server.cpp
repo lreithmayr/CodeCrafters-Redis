@@ -30,7 +30,7 @@ void Server::init() {
   }
 }
 
-[[noreturn]] void Server::run() {
+void Server::run() {
   // Listen for incoming connections
   int connection_backlog = 5;
   listen(m_sock_fd, connection_backlog);
@@ -63,7 +63,6 @@ void Server::init() {
 		< 0) {
 		error("Accept error");
 	  }
-	  std::cout << "New connection with fd " << new_client_socket << "\n";
 	  // Add it to the client list
 	  m_clients.push_back(new_client_socket);
 	}
@@ -71,32 +70,44 @@ void Server::init() {
 	// Loop through the list of active connections to read the data
 	for (size_t i = 0; i < m_clients.size(); ++i) {
 	  int client_fd = m_clients.at(i);
-	  // Only true, if select() triggers on one of the clients on the readfds watch list
+	  // Only true if select() triggers on one of the clients on the watch list
 	  if (FD_ISSET(client_fd, &m_readfds)) {
-		std::cout << "Data from client " << client_fd << "\n";
-		handle_client(client_fd, i);
+		process_command(client_fd, i);
 	  }
 	}
   }
 }
 
-void Server::handle_client(int &fd, int i) {
-  std::cout << "Reading data" << "\n";
+void Server::process_command(const int &fd, const int i) {
   char rbuf[BUF_SIZE];
-  int n = read(fd, rbuf, sizeof(rbuf) - 1);
-  if (n != 0) {
-	std::cout << "Received message: " << rbuf << "\n";
-  } else {
-	std::cout << "FD " << fd << "disconnected!" << "\n";
-	close(fd);
-	m_clients.erase(m_clients.begin() + i);
+  int bytes_recvd = recv(fd, rbuf, sizeof(rbuf) - 1, 0);
+  if (bytes_recvd < 0) {
+	error("Receiving command");
+  }
+  if (bytes_recvd == 0) {
+	// Client has closed connection
+	close_connection(fd, i);
 	return;
   }
 
-  std::cout << "Sending data" << "\n";
-  const char wbuf[] = "+PONG\r\n";
-  n = write(fd, wbuf, sizeof(wbuf) - 1);
-  if (n < 0) {
-	error("Writing to socket");
+  try {
+	sz::string_view request(rbuf);
+	sz::string parsed = Protocol::parse(request);
+	int bytes_sent = 0;
+	while (bytes_sent < parsed.length()) {
+	  bytes_sent += send(fd, parsed.data(), parsed.length(), 0);
+	  if (bytes_sent < 0) {
+		error("Writing to socket");
+	  }
+	}
+  } catch (const std::exception &e) {
+	std::cout << e.what() << "\n";
   }
+
+}
+
+void Server::close_connection(const int &fd, const int i) {
+  std::cout << "FD " << fd << "disconnected!" << "\n";
+  close(fd);
+  m_clients.erase(m_clients.begin() + i);
 }
