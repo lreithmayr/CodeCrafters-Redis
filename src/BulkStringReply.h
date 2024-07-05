@@ -6,7 +6,7 @@
 class BulkStringReply : public RESPReply {
  public:
   BulkStringReply(const std::string &msg);
-  virtual std::string message() override;
+  virtual const std::string message() override;
 
   void construct();
 

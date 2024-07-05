@@ -6,7 +6,7 @@
 class SimpleStringReply : public RESPReply {
  public:
   SimpleStringReply(const std::string &msg);
-  virtual std::string message() override;
+  virtual const std::string message() override;
 
   void construct();
 

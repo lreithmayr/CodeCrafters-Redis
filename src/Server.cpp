@@ -8,8 +8,6 @@ void error(const char *msg) {
 }
 
 void Server::init() {
-
-
   m_client_addr_len = sizeof(m_client_addr);
   m_server_addr.sin_family = AF_INET;
   m_server_addr.sin_addr.s_addr = INADDR_ANY;
@@ -74,13 +72,13 @@ void Server::run() {
 	  int client_fd = m_clients.at(i);
 	  // Only true if select() triggers on one of the clients on the watch list
 	  if (FD_ISSET(client_fd, &m_readfds)) {
-		process_command(client_fd, i);
+		process_request(client_fd, i);
 	  }
 	}
   }
 }
 
-void Server::process_command(const int &fd, const int i) {
+void Server::process_request(const int fd, const int i) {
   char rbuf[BUF_SIZE];
   int bytes_recvd = recv(fd, rbuf, sizeof(rbuf) - 1, 0);
   if (bytes_recvd < 0) {
@@ -94,21 +92,55 @@ void Server::process_command(const int &fd, const int i) {
 
   try {
 	std::string_view request(rbuf);
-	std::shared_ptr<RESPReply> parsed = Protocol::parse(request);
-	int bytes_sent = 0;
-	while (bytes_sent < parsed->message().length()) {
-	  bytes_sent += send(fd, &parsed->message()[0], parsed->message().length(), 0);
-	  if (bytes_sent < 0) {
-		error("Writing to socket");
-	  }
-	}
+	std::vector<std::string_view> parsed = Protocol::parse(request);
+	process_commands(fd, parsed);
   } catch (const std::exception &e) {
 	std::cout << e.what() << "\n";
   }
 }
 
-void Server::close_connection(const int &fd, const int i) {
+void Server::close_connection(const int fd, const int i) {
   std::cout << "FD " << fd << " disconnected!" << "\n";
   close(fd);
   m_clients.erase(m_clients.begin() + i);
+}
+
+void Server::process_commands(const int fd, const std::vector<std::string_view> &parsed_request) {
+  auto cmd = parsed_request.at(1);
+  if (cmd == "ECHO") {
+	auto reply = BulkStringReply(Command::ECHO(parsed_request.at(3)));
+	send_reply(fd, reply);
+	return;
+  }
+  if (cmd == "PING") {
+	auto reply = BulkStringReply(Command::PING());
+	send_reply(fd, reply);
+	return;
+  }
+  if (cmd == "SET") {
+	auto key = parsed_request.at(3);
+	auto value = parsed_request.at(5);
+	m_db.insert(std::make_pair(key, value));
+	auto reply = SimpleStringReply(Command::SET(key, value));
+	send_reply(fd, reply);
+	return;
+  }
+  if (cmd == "GET") {
+	auto key = parsed_request.at(3);
+	auto value = m_db.at(key);
+	auto reply = SimpleStringReply(Command::GET(value));
+	send_reply(fd, reply);
+	return;
+  }
+  throw std::runtime_error("couldn't parse command");
+}
+
+void Server::send_reply(const int fd, RESPReply &reply) {
+  int bytes_sent = 0;
+  while (bytes_sent < reply.message().length()) {
+	bytes_sent += send(fd, &reply.message()[0], reply.message().length(), 0);
+	if (bytes_sent < 0) {
+	  error("Writing to socket");
+	}
+  }
 }

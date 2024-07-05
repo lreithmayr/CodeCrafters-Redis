@@ -1,11 +1,11 @@
 #include "RedisDB.h"
 
-template<typename T>
-void RedisDB::insert(T &val) {
-  m_redis_db.insert(val);
+template<typename K, typename V>
+void RedisDB<K, V>::insert(const K &key, const V &val) {
+  m_redis_db.insert({ key, val });
 }
 
-template<typename T>
-T &RedisDB::get(const T &key) {
+template<typename K, typename V>
+V &RedisDB<K, V>::get(const K &key) {
   return m_redis_db.at(key);
 }

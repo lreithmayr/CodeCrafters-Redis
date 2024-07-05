@@ -10,6 +10,6 @@ void BulkStringReply::construct() {
 	m_reply = std::string("$" + n_chars + "\r\n" + m_msg + "\r\n");
 }
 
-std::string BulkStringReply::message() {
+const std::string BulkStringReply::message() {
   return m_reply;
 }

@@ -19,10 +19,9 @@ class Command {
 	return std::string("OK");
   }
 
-  template<typename K>
-  static inline std::string GET(const K &key) {
-	std::cout << "Key: " << key << "\n";
-	return std::string("OK");
+  template<typename V>
+  static inline std::string GET(const V &value) {
+	return std::string(value);
   }
 };
 #endif //REDIS_STARTER_CPP_INCLUDE_COMMAND_H_

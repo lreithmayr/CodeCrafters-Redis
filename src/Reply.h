@@ -8,7 +8,7 @@ class RESPReply {
   RESPReply() = default;
   ~RESPReply() = default;
 
-  virtual std::string message() = 0;
+  virtual const std::string message() = 0;
 
  protected:
   std::string m_msg;

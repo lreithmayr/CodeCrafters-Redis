@@ -15,8 +15,10 @@
 #include <sys/select.h>
 
 #include "Protocol.h"
-
-class RedisDB;
+#include "Command.h"
+#include "BulkStringReply.h"
+#include "SimpleStringReply.h"
+#include "RedisDB.h"
 
 class Server {
  public:
@@ -24,12 +26,10 @@ class Server {
 
   void init();
   [[noreturn]] void run();
-  void process_command(const int &fd, const int i);
-  void close_connection(const int &fd, const int i);
-
-  static std::shared_ptr<RedisDB> database() {
-	return m_db;
-  }
+  void process_request(const int fd, const int i);
+  void close_connection(const int fd, const int i);
+  void process_commands(const int fd, const std::vector<std::string_view> &parsed_request);
+  void send_reply(const int fd, RESPReply &reply);
 
  private:
   int m_sock_fd { -1 };
@@ -39,7 +39,7 @@ class Server {
   int m_client_addr_len;
   fd_set m_readfds;
   std::vector<int> m_clients;
-  static std::shared_ptr<RedisDB> m_db;
+  std::unordered_map<std::string_view, std::string_view> m_db;
 };
 
 #endif //REDIS_STARTER_CPP_INCLUDE_SERVER_H_
