@@ -16,6 +16,8 @@
 
 #include "Protocol.h"
 
+class RedisDB;
+
 class Server {
  public:
   Server() = default;
@@ -25,6 +27,10 @@ class Server {
   void process_command(const int &fd, const int i);
   void close_connection(const int &fd, const int i);
 
+  static std::shared_ptr<RedisDB> database() {
+	return m_db;
+  }
+
  private:
   int m_sock_fd { -1 };
   int m_client_fd { -1 };
@@ -33,7 +39,7 @@ class Server {
   int m_client_addr_len;
   fd_set m_readfds;
   std::vector<int> m_clients;
-
+  static std::shared_ptr<RedisDB> m_db;
 };
 
 #endif //REDIS_STARTER_CPP_INCLUDE_SERVER_H_

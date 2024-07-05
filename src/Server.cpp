@@ -8,6 +8,8 @@ void error(const char *msg) {
 }
 
 void Server::init() {
+
+
   m_client_addr_len = sizeof(m_client_addr);
   m_server_addr.sin_family = AF_INET;
   m_server_addr.sin_addr.s_addr = INADDR_ANY;
@@ -91,11 +93,11 @@ void Server::process_command(const int &fd, const int i) {
   }
 
   try {
-	sz::string_view request(rbuf);
-	sz::string parsed = Protocol::parse(request);
+	std::string_view request(rbuf);
+	std::shared_ptr<RESPReply> parsed = Protocol::parse(request);
 	int bytes_sent = 0;
-	while (bytes_sent < parsed.length()) {
-	  bytes_sent += send(fd, parsed.data(), parsed.length(), 0);
+	while (bytes_sent < parsed->message().length()) {
+	  bytes_sent += send(fd, &parsed->message()[0], parsed->message().length(), 0);
 	  if (bytes_sent < 0) {
 		error("Writing to socket");
 	  }
@@ -103,11 +105,10 @@ void Server::process_command(const int &fd, const int i) {
   } catch (const std::exception &e) {
 	std::cout << e.what() << "\n";
   }
-
 }
 
 void Server::close_connection(const int &fd, const int i) {
-  std::cout << "FD " << fd << "disconnected!" << "\n";
+  std::cout << "FD " << fd << " disconnected!" << "\n";
   close(fd);
   m_clients.erase(m_clients.begin() + i);
 }
