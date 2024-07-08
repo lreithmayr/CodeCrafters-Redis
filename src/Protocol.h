@@ -10,6 +10,7 @@
 #include <memory>
 
 #include "Utils.h"
+#include "Command.h"
 
 typedef struct ByteType {
   static const char ASTERISK_BYTE = '*';
@@ -22,14 +23,14 @@ typedef struct ByteType {
 class Protocol {
  public:
   static inline std::vector<std::string_view> parse(std::string_view &rcvd_msg) {
+	std::vector<std::string> parsed;
+	Command command;
 	const char first_byte = rcvd_msg.at(0);
 	switch (first_byte) {
 	  case ByteType::ASTERISK_BYTE:
 		return parse_array(rcvd_msg);
 	  case ByteType::DOLLAR_BYTE:
 		return parse_bulk_string(rcvd_msg);
-	//   case ByteType::PLUS_BYTE:
-	// 	return parse_simple_string(rcvd_msg);
 	  default:
 		throw std::runtime_error("first byte didn't match");
 	}

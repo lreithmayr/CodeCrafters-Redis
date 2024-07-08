@@ -1,10 +1,26 @@
 #ifndef REDIS_STARTER_CPP_INCLUDE_COMMAND_H_
 #define REDIS_STARTER_CPP_INCLUDE_COMMAND_H_
 
-#include "Server.h"
+typedef enum {
+  ARG_TYPE_STRING,
+  ARG_TYPE_INTEGER,
+  ARG_TYPE_DOUBLE,
+  ARG_TYPE_KEY, /* A string, but represents a keyname */
+  ARG_TYPE_PATTERN,
+  ARG_TYPE_UNIX_TIME,
+  ARG_TYPE_PURE_TOKEN,
+  ARG_TYPE_ONEOF, /* Has subargs */
+  ARG_TYPE_BLOCK /* Has subargs */
+} redisCommandArgType;
 
-class Command {
- public:
+typedef struct Command {
+  /*
+  std::string name;
+  redisCommandArgType type;
+  std::vector<std::string> args;
+  std::vector<std::string> opts;
+   */
+
   static inline std::string ECHO(const std::string_view &msg) {
 	return std::string(msg);
   }
@@ -23,5 +39,5 @@ class Command {
   static inline std::string GET(const V &value) {
 	return std::string(value);
   }
-};
+} Command;
 #endif //REDIS_STARTER_CPP_INCLUDE_COMMAND_H_
